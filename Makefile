@@ -5,7 +5,7 @@ export THEOS_PACKAGE_SCHEME = rootless
 include $(THEOS)/makefiles/common.mk
 
 TWEAK_NAME = A11ZeroAuto
-A11ZeroAuto_FILES = Tweak.x
+A11ZeroAuto_FILES = Tweak.xm
 A11ZeroAuto_FRAMEWORKS = IOKit UIKit
 A11ZeroAuto_CFLAGS = -fobjc-arc
 
