@@ -4,6 +4,8 @@ on: [push, pull_request]
 jobs:
   build:
     runs-on: macos-latest
+    permissions:
+      contents: write # Essential for creating a Release
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -21,3 +23,13 @@ jobs:
         with:
           name: A11ZeroAuto_Deb
           path: packages/*.deb
+
+      - name: Create Release
+        if: github.event_name == 'push' # Only release on push, not PR
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: "packages/*.deb"
+          tag: v1.2.${{ github.run_number }} # Auto-increments version
+          name: "A11ZeroAuto v1.2.${{ github.run_number }}"
+          body: "Autonomous kernel-direct engine for A11 Bionic. (Automatic Build)"
+          token: ${{ secrets.GITHUB_TOKEN }}
