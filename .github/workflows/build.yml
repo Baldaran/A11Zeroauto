@@ -1,0 +1,23 @@
+name: Build A11ZeroAuto
+on: [push, pull_request]
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Theos
+        uses: Randomblock1/theos-action@v1
+        
+      - name: Build Package
+        run: |
+          export THEOS_PACKAGE_SCHEME=rootless
+          make package
+          
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: A11ZeroAuto_Deb
+          path: packages/*.deb
