@@ -1,0 +1,9 @@
+Package: com.yourname.a11zeroauto
+Name: A11ZeroAuto
+Depends: mobilesubstrate
+Version: 1.2.1
+Architecture: iphoneos-arm64
+Description: Autonomous A11 core management for battery efficiency.
+Maintainer: YourName
+Author: YourName
+Section: Tweaks
