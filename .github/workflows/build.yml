@@ -5,13 +5,18 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
+      
       - name: Setup Theos
         uses: Randomblock1/theos-action@v1
+        
       - name: Build Package
-        run: make package THEOS_PACKAGE_SCHEME=rootless
+        run: |
+          export THEOS_PACKAGE_SCHEME=rootless
+          make package
+          
       - name: Upload Artifact
-        uses: actions/abstract/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: A11ZeroAuto_Deb
           path: packages/*.deb
