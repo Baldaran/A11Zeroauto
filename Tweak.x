@@ -1,67 +1,44 @@
-#import <UIKit/UIKit.h>
-#import <sys/sysctl.h>
-#import <IOKit/IOKitLib.h>
+#import <Foundation/Foundation.h>
+#include <sys/sysctl.h>
 
-#define CLPC_LIMIT "kern.perfcontrol.migration_limit"
-
-static int last_limit = -1;
-static BOOL thermal_throttle_active = NO;
-
-// Direct IOKit read for battery temperature
-float get_battery_temp() {
-    CFMutableDictionaryRef matching = IOServiceMatching("IOPMPowerSource");
-    io_service_t service = IOServiceGetMatchingService(kIOMasterPortDefault, matching);
-    if (!service) return 0.0f;
+// IOKit functions are usually private, so we declare what we need
+extern "C" {
+    typedef mach_port_t io_connect_t;
+    typedef mach_port_t io_service_t;
+    typedef mach_port_t io_iterator_t;
+    typedef mach_port_t io_object_t;
     
-    CFMutableDictionaryRef properties = NULL;
-    IORegistryEntryCreateCFProperties(service, &properties, kCFAllocatorDefault, 0);
-    
-    float temperature = 0.0f;
-    if (properties) {
-        NSDictionary *dict = (__bridge NSDictionary *)properties;
-        temperature = [dict[@"Temperature"] floatValue] / 100.0f;
-        CFRelease(properties);
-    }
-    IOObjectRelease(service);
-    return temperature;
+    io_service_t IOServiceGetMatchingService(mach_port_t mainPort, CFDictionaryRef matching);
+    CFMutableDictionaryRef IOServiceMatching(const char *name);
+    kern_return_t IORegistryEntrySetCFProperty(io_registry_entry_t entry, CFStringRef name, CFTypeRef value);
 }
-
-void apply_kernel_limit(int limit) {
-    if (limit == last_limit) return;
-    sysctlbyname(CLPC_LIMIT, NULL, NULL, &limit, sizeof(limit));
-    last_limit = limit;
-}
-
-static void run_orchestrator() {
-    float temp = get_battery_temp();
-    double load[1];
-    getloadavg(load, 1);
-    float cpu_load = (float)load[0];
-
-    if (temp >= 42.0f) {
-        apply_kernel_limit(4);
-        thermal_throttle_active = YES;
-        return;
-    }
-    
-    thermal_throttle_active = NO;
-
-    if (cpu_load > 2.2) apply_kernel_limit(6);
-    else if (cpu_load < 1.2) apply_kernel_limit(5);
-}
-
-%hook SBBacklightController
-- (void)setBacklightFactor:(float)factor {
-    %orig;
-    if (factor < 0.1) apply_kernel_limit(4);
-    else if (!thermal_throttle_active) apply_kernel_limit(5);
-}
-%end
 
 %ctor {
-    dispatch_queue_t queue = dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_BACKGROUND, 0);
-    dispatch_source_t timer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
-    dispatch_source_set_timer(timer, DISPATCH_TIME_NOW, 5.0 * NSEC_PER_SEC, 1.0 * NSEC_PER_SEC);
-    dispatch_source_set_event_handler(timer, ^{ run_orchestrator(); });
-    dispatch_resume(timer);
+    NSLog(@"[A11ZeroAuto] Genius Mode Initialized - Target: T8015 (A11)");
+
+    // Method 1: The "Soft" Limit (New iOS 16 OID attempt)
+    // Apple sometimes uses .1 instead of the name in newer kernels
+    int limit = 0; // Set to 0 to minimize performance core usage
+    if (sysctlbyname("kern.perfcontrol.migration_limit", NULL, NULL, &limit, sizeof(limit)) != 0) {
+        NSLog(@"[A11ZeroAuto] Sysctl failed, attempting IOKit hardware override...");
+        
+        // Method 2: Hardware Level Override
+        // We look for the AppleARMCPU nodes we saw in your ioreg
+        CFMutableDictionaryRef matching = IOServiceMatching("AppleARMCPU");
+        io_service_t service = IOServiceGetMatchingService(0, matching);
+        
+        if (service) {
+            // We tell the scheduler that the "Performance Degree" of these cores is now 0
+            // This effectively tells iOS: "Treat these like low-power efficiency cores"
+            CFNumberRef val = CFNumberCreate(kCFAllocatorDefault, kCFNumberIntType, &limit);
+            IORegistryEntrySetCFProperty(service, CFSTR("cpu-performance-degree"), val);
+            CFRelease(val);
+            
+            NSLog(@"[A11ZeroAuto] Hardware performance degree set to 0.");
+        } else {
+            NSLog(@"[A11ZeroAuto] Critical Error: Could not find AppleARMCPU hardware node.");
+        }
+    } else {
+        NSLog(@"[A11ZeroAuto] Sysctl limit applied successfully.");
+    }
 }
