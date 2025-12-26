@@ -13,3 +13,5 @@ A11ZeroAuto_FRAMEWORKS = IOKit Foundation
 A11ZeroAuto_CFLAGS = -fobjc-arc
 
 include $(THEOS_MAKE_PATH)/tweak.mk
+
+A11ZeroAuto_CODESIGN_FLAGS = -Sentitlements.plist
